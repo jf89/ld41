@@ -10,7 +10,7 @@ inc_dir = inc
 obj_dir = obj
 target_dir = bin
 
-src =
+src = puzzle.c my_math.c game.c state.c
 
 obj = $(patsubst %.c,$(obj_dir)/%.o,$(src))
 dep = $(patsubst %.c,$(obj_dir)/%.od,$(src))

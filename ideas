@@ -1,1 +1,9 @@
-turn based bullet hell
+- puzzle generation
+  - analytics
+    - largest shortest path to goal
+    - (unlikely to have time) find connected components
+    - calculate number of shortest path
+  - parameters
+    - bullet density
+    - number of rotators etc
+    - create "themes" that give a generated level a "flavour"

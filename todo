@@ -1,1 +1,22 @@
-- puzzle generator
+- puzzle generation
+  - generate some puzzles / try them
+  - output analytics for all puzzles generated
+  - create puzzle input from scratch
+
+- game play
+  - make turn based
+
+- rendering
+  - render player
+  - render explosion
+
+- sound
+  - all the sound
+
+- game state
+  - menu
+  - end game cleanly
+  - choose generate level/choose fixed level
+
+- art
+  - make things look less shit
