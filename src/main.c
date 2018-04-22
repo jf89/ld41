@@ -49,7 +49,7 @@ int main(s32 argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 	SDL_Window *window = SDL_CreateWindow("yatbbh", SDL_WINDOWPOS_CENTERED,
-		SDL_WINDOWPOS_CENTERED, 1300, 700, 0);
+		SDL_WINDOWPOS_CENTERED, 64 * 20, 64 * 10, 0);
 	if (window == NULL) {
 		printf("Unable to create window: %s\n", SDL_GetError());
 		goto cleanup_sdl;
@@ -95,9 +95,11 @@ int main(s32 argc, char *argv[]) {
 
 	state = STATE_MENU;
 
-	menu_state.renderer = renderer;
-	menu_state.font_tex = font_tex;
+	menu_state.renderer   = renderer;
+	menu_state.font_tex   = font_tex;
+	menu_state.sprite_tex = sprite_tex;
 	menu_state.game_state = &game_state;
+	init_menu_state(&menu_state);
 
 	game_state.renderer   = renderer;
 	game_state.sprite_tex = sprite_tex;

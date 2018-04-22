@@ -112,8 +112,11 @@ struct puzzle generate_puzzle(u32 width, u32 height, u32 num_emitters) {
 		e->x = x; e->y = y;
 		e->type       = rand() % 3;
 		e->dir_mask   = rand() & 0xFF;
-		e->fire_mask  = rand() & 0xFF;
 		e->num_steps  = acceptable_step_lengths[rand() % 6];
+		u32 tmp = (1 << e->num_steps) - 1;
+		do {
+			e->fire_mask  = rand() & tmp;
+		} while (!e->fire_mask);
 		e->step       = (rand() % e->num_steps) + 1;
 	}
 	puzzle.player.x = width + 1;

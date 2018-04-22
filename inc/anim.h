@@ -31,4 +31,17 @@ struct anim_queue {
 	} queue[MAX_ANIMS];
 };
 
+#define MAX_EXPLOSIONS      1024
+#define EXPLOSION_PARTICLES 32
+
+struct explosion_queue {
+	u32 num_explosions;
+	struct explosion {
+		u32 x, y, ticks;
+		struct particle {
+			f32 dx, dy, speed;
+		} particles[EXPLOSION_PARTICLES];
+	} explosions[MAX_EXPLOSIONS];
+};
+
 #endif

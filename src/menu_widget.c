@@ -12,6 +12,9 @@
 #define FONT_HEIGHT      16
 #define MENU_ITEM_LEFT   (MENU_ITEM_SCALE * FONT_WIDTH * 4)
 
+#define SW (64 * 20)
+#define SH (64 * 10)
+
 static u32 last_controller_ticks = 0;
 
 s32 menu_widget_handle_event(struct menu_widget *menu_widget, SDL_Event *event) {
@@ -79,10 +82,10 @@ quit:
 void draw_widget(struct menu_widget *menu_widget, SDL_Renderer *renderer, SDL_Texture *font_tex) {
 	u32 title_len = strlen(menu_widget->title);
 	draw_string(renderer, font_tex, menu_widget->title,
-	            (1300 - (FONT_WIDTH * title_len * TITLE_SCALE)) / 2, 0,
+	            (SW - (FONT_WIDTH * title_len * TITLE_SCALE)) / 2, 0,
 	            TITLE_SCALE, 255, 255, 255);
 
-	u32 menu_item_top = ((700 - ((menu_widget->num_items * FONT_HEIGHT * MENU_ITEM_SCALE) + \
+	u32 menu_item_top = ((SH - ((menu_widget->num_items * FONT_HEIGHT * MENU_ITEM_SCALE) + \
                                       TITLE_SCALE * FONT_HEIGHT)) / 2 + TITLE_SCALE * FONT_HEIGHT);
 	for (u32 i = 0; i < menu_widget->num_items; ++i) {
 		u8 color = i == menu_widget->cur_item ? 255 : 128;

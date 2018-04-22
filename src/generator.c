@@ -58,13 +58,13 @@ static s32 longer_goal(struct goal *g1, struct goal *g2) {
 }
 
 void generate_easy_puzzle(struct puzzle *puzzle) {
-	generate(puzzle, longer_goal, 5, 5, 3, 100);
+	generate(puzzle, longer_goal, 6, 4, 3, 20);
 }
 
 void generate_medium_puzzle(struct puzzle *puzzle) {
-	generate(puzzle, longer_goal, 8, 8, 6, 100);
+	generate(puzzle, longer_goal, 8, 5, 7, 100);
 }
 
 void generate_hard_puzzle(struct puzzle *puzzle) {
-	generate(puzzle, longer_goal, 20, 10, 10, 100);
+	generate(puzzle, longer_goal, 12, 8, 16, 100);
 }
