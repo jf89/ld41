@@ -4,6 +4,7 @@
 enum state {
 	STATE_QUIT,
 	STATE_GAME,
+	STATE_MENU,
 };
 
 extern enum state state;

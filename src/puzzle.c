@@ -71,6 +71,9 @@ void print_puzzle(struct puzzle *puzzle) {
 				}
 			}
 			switch (puzzle->tiles[j*w + i]) {
+			case TILE_GOAL:
+				line[i] = 'G';
+				goto next_i;
 			case TILE_EMPTY:
 				line[i] = '.';
 				goto next_i;
@@ -87,6 +90,7 @@ void print_puzzle(struct puzzle *puzzle) {
 	}
 }
 
+static const u32 acceptable_step_lengths[] = { 1, 2, 3, 4, 6, 8 };
 struct puzzle generate_puzzle(u32 width, u32 height, u32 num_emitters) {
 	struct puzzle puzzle;
 	puzzle.width  = width;
@@ -109,7 +113,7 @@ struct puzzle generate_puzzle(u32 width, u32 height, u32 num_emitters) {
 		e->type       = rand() % 3;
 		e->dir_mask   = rand() & 0xFF;
 		e->fire_mask  = rand() & 0xFF;
-		e->num_steps  = (rand() % 8) + 1;
+		e->num_steps  = acceptable_step_lengths[rand() % 6];
 		e->step       = (rand() % e->num_steps) + 1;
 	}
 	puzzle.player.x = width + 1;
@@ -120,13 +124,15 @@ struct puzzle generate_puzzle(u32 width, u32 height, u32 num_emitters) {
 	return puzzle;
 }
 
-void step_puzzle(struct puzzle *puzzle,
-                 enum player_move player_move,
-                 struct anim_queue *anim_queue) {
+enum move_response step_puzzle(struct puzzle *puzzle,
+                               enum player_move player_move,
+                               struct anim_queue *anim_queue) {
+	enum move_response result = MOVE_RESPONSE_NONE;
 	enum tile *tiles = puzzle->tiles;
 	u32 num_bullets = puzzle->num_bullets;
 	struct bullet *bullets = puzzle->bullets;
 	u32 w = puzzle->width, h = puzzle->height;
+	u32 p_sx, p_sy, p_ex, p_ey;
 	{ // step player
 		u32 x = puzzle->player.x, y = puzzle->player.y;
 		switch (player_move) {
@@ -145,8 +151,22 @@ void step_puzzle(struct puzzle *puzzle,
 		case PLAYER_MOVE_PAUSE:
 			break;
 		}
-		if (x < w && y < h && tiles[y*w + x] == TILE_EMPTY) {
+		if (x < w && y < h && (tiles[y*w + x] == TILE_EMPTY || tiles[y*w + x] == TILE_GOAL)) {
+			p_sx = puzzle->player.x; p_sy = puzzle->player.y;
+			p_ex = x; p_ey = y;
+			if (anim_queue != NULL) {
+				anim_queue->queue[anim_queue->len++] = (struct anim) {
+					.type = ANIMATION_PLAYER_MOVE,
+					.player_move = {
+						.sx = p_sx, .sy = p_sy,
+						.ex = p_ex, .ey = p_ey,
+					},
+				};
+			}
 			puzzle->player.x = x; puzzle->player.y = y;
+			if (tiles[y*w + x] == TILE_GOAL) {
+				result = MOVE_RESPONSE_VICTORY;
+			}
 		}
 	}
 	{ // step emitters
@@ -194,11 +214,12 @@ void step_puzzle(struct puzzle *puzzle,
 			if (b->x >= w || b->y >= h) {
 				if (anim_queue != NULL) {
 					anim_queue->queue[anim_queue->len++] = (struct anim) {
-						.type = ANIMATION_BULLET_MOVE,
-						.bullet_move = {
+						.type = ANIMATION_BULLET_EXPLODE_EDGE,
+						.bullet_explode = {
 							.sx = sx,   .sy = sy,
 							.ex = b->x, .ey = b->y,
 							.dir = b->dir,
+							.added_explosion = 0,
 						},
 					};
 				}
@@ -207,12 +228,50 @@ void step_puzzle(struct puzzle *puzzle,
 			}
 			enum tile tile = tiles[b->y*w + b->x];
 			if (tile == TILE_EMITTER || tile == TILE_WALL) {
+				if (anim_queue != NULL) {
+					anim_queue->queue[anim_queue->len++] = (struct anim) {
+						.type = ANIMATION_BULLET_EXPLODE_EDGE,
+						.bullet_explode = {
+							.sx = sx,   .sy = sy,
+							.ex = b->x, .ey = b->y,
+							.dir = b->dir,
+							.added_explosion = 0,
+						},
+					};
+				}
 				bullets[i] = bullets[--num_bullets];
 				continue;
 			}
 			if (b->x == puzzle->player.x && b->y == puzzle->player.y) {
+				if (anim_queue != NULL) {
+					anim_queue->queue[anim_queue->len++] = (struct anim) {
+						.type = ANIMATION_BULLET_EXPLODE_MID,
+						.bullet_explode = {
+							.sx = sx,   .sy = sy,
+							.ex = b->x, .ey = b->y,
+							.dir = b->dir,
+							.added_explosion = 0,
+						},
+					};
+				}
 				bullets[i] = bullets[--num_bullets];
-				// TODO -- player death
+				result = MOVE_RESPONSE_DEATH;
+				continue;
+			}
+			if (p_sx == b->x && p_sy == b->y && p_ex == sx && p_ey == sy) {
+				if (anim_queue != NULL) {
+					anim_queue->queue[anim_queue->len++] = (struct anim) {
+						.type = ANIMATION_BULLET_EXPLODE_EDGE,
+						.bullet_explode = {
+							.sx = sx,   .sy = sy,
+							.ex = b->x, .ey = b->y,
+							.dir = b->dir,
+							.added_explosion = 0,
+						},
+					};
+				}
+				bullets[i] = bullets[--num_bullets];
+				result = MOVE_RESPONSE_DEATH;
 				continue;
 			}
 			if (anim_queue != NULL) {
@@ -229,6 +288,7 @@ void step_puzzle(struct puzzle *puzzle,
 		}
 	}
 	puzzle->num_bullets = num_bullets;
+	return result;
 }
 
 #define WALL                0x01000000
@@ -274,6 +334,8 @@ struct map generate_map(struct puzzle *puzzle) {
 				}
 				enum tile tile = puzzle->tiles[(j - 1)*(w - 2) + (i - 1)];
 				switch (tile) {
+				case TILE_GOAL:
+					break;
 				case TILE_EMPTY:
 					break;
 				case TILE_EMITTER:
@@ -337,7 +399,7 @@ void reset_map(struct map *map) {
 	}
 }
 
-void get_furthest_point(struct map *map, u32 x, u32 y) {
+struct goal get_furthest_point(struct map *map, u32 x, u32 y) {
 	u32 w = map->width, h = map->height, period = map->period;
 	struct to_explore {
 		u32 x, y, period;
@@ -373,7 +435,7 @@ void get_furthest_point(struct map *map, u32 x, u32 y) {
 			*p |= cost;
 		}
 		// PLAYER_MOVE_N
-		if (!(this_tile & WALL_FROM_N)) {
+		if (!(this_tile & WALL_FROM_S)) {
 			n_x = this.x; n_y = this.y + 1;
 			p = map_xyz(map, n_x, n_y, n_p);
 			if (!(*p & ALWAYS_BLOCKED_MASK)) {
@@ -384,7 +446,7 @@ void get_furthest_point(struct map *map, u32 x, u32 y) {
 			}
 		}
 		// PLAYER_MOVE_E
-		if (!(this_tile & WALL_FROM_E)) {
+		if (!(this_tile & WALL_FROM_W)) {
 			n_x = this.x - 1; n_y = this.y;
 			p = map_xyz(map, n_x, n_y, n_p);
 			if (!(*p & ALWAYS_BLOCKED_MASK)) {
@@ -395,7 +457,7 @@ void get_furthest_point(struct map *map, u32 x, u32 y) {
 			}
 		}
 		// PLAYER_MOVE_S
-		if (!(this_tile & WALL_FROM_S)) {
+		if (!(this_tile & WALL_FROM_N)) {
 			n_x = this.x; n_y = this.y - 1;
 			p = map_xyz(map, n_x, n_y, n_p);
 			if (!(*p & ALWAYS_BLOCKED_MASK)) {
@@ -406,7 +468,7 @@ void get_furthest_point(struct map *map, u32 x, u32 y) {
 			}
 		}
 		// PLAYER_MOVE_W
-		if (!(this_tile & WALL_FROM_W)) {
+		if (!(this_tile & WALL_FROM_E)) {
 			n_x = this.x + 1; n_y = this.y;
 			p = map_xyz(map, n_x, n_y, n_p);
 			if (!(*p & ALWAYS_BLOCKED_MASK)) {
@@ -417,6 +479,139 @@ void get_furthest_point(struct map *map, u32 x, u32 y) {
 			}
 		}
 	}
-	printf("%u - %u\n", last_cost, end - last_cost_start);
+	// printf("%u - %u\n", last_cost, end - last_cost_start);
+	struct goal result = {
+		.x = 0, .y = 0, .p = 0, .cost = 0, .others = 1000,
+	};
+	if (end - last_cost_start > 0) {
+		u32 choice = rand() % (end - last_cost_start) + last_cost_start;
+		result = (struct goal) {
+			.x = to_explore[choice].x, .y = to_explore[choice].y,
+			.p = to_explore[choice].period, .cost = last_cost,
+			.others = last_cost_start - end,
+		};
+	}
 	free(to_explore);
+	return result;
+}
+
+void solve_puzzle(struct solution *solution, struct puzzle *puzzle) {
+	struct puzzle tmp;
+	memcpy(&tmp, puzzle, sizeof(tmp));
+	tmp.player.x = tmp.width + 1;
+	struct map map = generate_map(&tmp);
+
+	u32 goal_x = tmp.width + 1, goal_y = tmp.height + 1;
+	for (u32 j = 0; j < tmp.height; ++j) {
+		for (u32 i = 0; i < tmp.width; ++i) {
+			if (tmp.tiles[j*tmp.width + i] == TILE_GOAL) {
+				goal_x = i; goal_y = j;
+				goto found_goal;
+			}
+		}
+	}
+found_goal:
+	get_furthest_point(&map, goal_x + 1, goal_y + 1);
+	u32 cur_x = puzzle->player.x + 1, cur_y = puzzle->player.y + 1;
+	printf("goal: %u, %u\n", goal_x, goal_y);
+	printf("cur: %u, %u\n", cur_x, cur_y);
+	u32 num_moves = *map_xyz(&map, cur_x, cur_y, 0) & COST_MASK;
+	printf("num_moves: %u\n", num_moves);
+	if (num_moves == 0) {
+		goto err;
+	}
+	--num_moves;
+	u32 num_periods = map.period;
+	tmp.player.x = cur_x - 1; tmp.player.y = cur_y - 1;
+	solution->len = 0;
+	for (u32 i = 0; i < num_moves; ++i) {
+		struct puzzle tmp_reset;
+		memcpy(&tmp_reset, &tmp, sizeof(tmp));
+
+		u32 next_sol_num = num_moves - i;
+		u32 p = (i + 1) % num_periods;
+
+		printf("page: %u, next_sol_num: %x, cur: (%u, %u)\n", p, next_sol_num, cur_x, cur_y);
+		print_map_page(&map, p);
+
+		if (step_puzzle(&tmp, PLAYER_MOVE_PAUSE, NULL) != MOVE_RESPONSE_DEATH
+		 && ((*map_xyz(&map, cur_x, cur_y, p)) & COST_MASK) == next_sol_num) {
+			printf("Pause:\n");
+			print_puzzle(&tmp);
+			solution->moves[i] = PLAYER_MOVE_PAUSE;
+			++solution->len;
+			continue;
+		}
+
+		memcpy(&tmp, &tmp_reset, sizeof(tmp));
+		if (step_puzzle(&tmp, PLAYER_MOVE_N, NULL) != MOVE_RESPONSE_DEATH
+		 && ((*map_xyz(&map, cur_x, cur_y - 1, p)) & COST_MASK) == next_sol_num) {
+			--cur_y;
+			printf("N:\n");
+			print_puzzle(&tmp);
+			solution->moves[i] = PLAYER_MOVE_N;
+			++solution->len;
+			continue;
+		}
+
+		memcpy(&tmp, &tmp_reset, sizeof(tmp));
+		if (step_puzzle(&tmp, PLAYER_MOVE_E, NULL) != MOVE_RESPONSE_DEATH
+		 && ((*map_xyz(&map, cur_x + 1, cur_y, p)) & COST_MASK) == next_sol_num) {
+			++cur_x;
+			printf("E:\n");
+			print_puzzle(&tmp);
+			solution->moves[i] = PLAYER_MOVE_E;
+			++solution->len;
+			continue;
+		}
+
+		memcpy(&tmp, &tmp_reset, sizeof(tmp));
+		if (step_puzzle(&tmp, PLAYER_MOVE_S, NULL) != MOVE_RESPONSE_DEATH
+		 && ((*map_xyz(&map, cur_x, cur_y + 1, p)) & COST_MASK) == next_sol_num) {
+			++cur_y;
+			printf("S:\n");
+			print_puzzle(&tmp);
+			solution->moves[i] = PLAYER_MOVE_S;
+			++solution->len;
+			continue;
+		}
+
+		memcpy(&tmp, &tmp_reset, sizeof(tmp));
+		if (step_puzzle(&tmp, PLAYER_MOVE_W, NULL) != MOVE_RESPONSE_DEATH
+		 && ((*map_xyz(&map, cur_x - 1, cur_y, p)) & COST_MASK) == next_sol_num) {
+			--cur_x;
+			printf("W:\n");
+			print_puzzle(&tmp);
+			solution->moves[i] = PLAYER_MOVE_W;
+			++solution->len;
+			continue;
+		}
+
+		printf("ERROR! CODE RED!\n");
+		break;
+	}
+
+	printf("solution len: %u\n", solution->len);
+	for (u32 i = 0; i < solution->len; ++i) {
+		switch (solution->moves[i]) {
+		case PLAYER_MOVE_PAUSE:
+			printf("Pause\n");
+			break;
+		case PLAYER_MOVE_N:
+			printf("N\n");
+			break;
+		case PLAYER_MOVE_E:
+			printf("E\n");
+			break;
+		case PLAYER_MOVE_S:
+			printf("S\n");
+			break;
+		case PLAYER_MOVE_W:
+			printf("W\n");
+			break;
+		}
+	}
+
+err:
+	free(map.data);
 }

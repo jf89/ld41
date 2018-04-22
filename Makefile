@@ -3,14 +3,14 @@ CC = gcc
 INCLUDES = -I$(inc_dir)
 
 CCFLAGS = -Wall -ggdb --std=c99 $(shell sdl2-config --cflags) $(INCLUDES)
-LDFLAGS = $(shell sdl2-config --libs) -lSDL2_image
+LDFLAGS = $(shell sdl2-config --libs) -lSDL2_image -lm
 
 src_dir = src
 inc_dir = inc
 obj_dir = obj
 target_dir = bin
 
-src = puzzle.c my_math.c game.c state.c
+src = puzzle.c my_math.c game.c state.c generator.c menu.c draw.c menu_widget.c
 
 obj = $(patsubst %.c,$(obj_dir)/%.o,$(src))
 dep = $(patsubst %.c,$(obj_dir)/%.od,$(src))

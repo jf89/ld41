@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include <SDL.h>
 #include <SDL_image.h>
@@ -8,7 +9,9 @@
 #include "my_math.h"
 #include "state.h"
 #include "puzzle.h"
+#include "generator.h"
 #include "game.h"
+#include "menu.h"
 
 char *res_dir = NULL;
 
@@ -70,13 +73,40 @@ int main(s32 argc, char *argv[]) {
 	if (sprite_tex == NULL) {
 		goto cleanup_renderer;
 	}
+	SDL_Texture *font_tex = load_texture(renderer, "codepage437.png");
+	if (font_tex == NULL) {
+		goto cleanup_sprite_tex;
+	}
+	SDL_GameController *controller = NULL;
+	{ // init game controller
+		s32 num_controllers = SDL_NumJoysticks();
+		for (s32 i = 0; i < num_controllers; ++i) {
+			if (SDL_IsGameController(i)) {
+				controller = SDL_GameControllerOpen(i);
+				if (controller) {
+					break;
+				}
+			}
+		}
+	}
 
-
-	state = STATE_GAME;
+	struct menu_state menu_state;
 	struct game_state game_state;
+
+	state = STATE_MENU;
+
+	menu_state.renderer = renderer;
+	menu_state.font_tex = font_tex;
+	menu_state.game_state = &game_state;
+
 	game_state.renderer   = renderer;
 	game_state.sprite_tex = sprite_tex;
-	game_state.puzzle     = generate_puzzle(10, 10, 10);
+	game_state.font_tex   = font_tex;
+	// generate_hard_puzzle_2(&game_state.puzzle);
+	// init_game_state(&game_state);
+	u32 seed = time(NULL);
+	printf("Random seed: 0x%x\n", seed);
+	srand(seed);
 	while (1) {
 		switch (state) {
 			case STATE_QUIT:
@@ -85,56 +115,18 @@ int main(s32 argc, char *argv[]) {
 			case STATE_GAME:
 				run_game(&game_state);
 				break;
+			case STATE_MENU:
+				run_menu(&menu_state);
+				break;
 		}
 	}
 
-	/* struct puzzle puzzle = generate_puzzle(10, 10, 10);
-	struct map    map    = generate_map(&puzzle);
-	while (1) {
-		char command;
-		print_puzzle(&puzzle);
-		printf("command: ");
-		scanf(" %c", &command);
-		printf("received command: %c\n", command);
-		switch (command) {
-		case 'j':
-			step_puzzle(&puzzle, PLAYER_MOVE_S);
-			break;
-		case 'k':
-			step_puzzle(&puzzle, PLAYER_MOVE_N);
-			break;
-		case 'h':
-			step_puzzle(&puzzle, PLAYER_MOVE_W);
-			break;
-		case 'l':
-			step_puzzle(&puzzle, PLAYER_MOVE_E);
-			break;
-		case 's':
-			step_puzzle(&puzzle, PLAYER_MOVE_PAUSE);
-			break;
-		case 'p': {
-				u32 page;
-				printf("input page number: ");
-				scanf(" %u", &page);
-				print_map_page(&map, page);
-			} break;
-		case 'g': {
-				u32 x, y;
-				printf("input x, y: ");
-				scanf(" %u %u", &x, &y);
-				get_furthest_point(&map, x, y);
-			} break;
-		case 'r':
-			reset_map(&map);
-			break;
-		case 'q':
-			goto finished_running;
-		default:
-			printf("unknown command: %c\n", command);
-		}
-	} */
-
 finished_running:
+	if (controller) {
+		SDL_GameControllerClose(controller);
+	}
+	SDL_DestroyTexture(font_tex);
+cleanup_sprite_tex:
 	SDL_DestroyTexture(sprite_tex);
 	free(res_dir);
 cleanup_renderer:
